@@ -1,0 +1,67 @@
+
+# Binary files
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+*.app
+
+# Build folders
+bin/
+build/
+dist/
+
+# Temporary run files
+tmp/
+temp/
+
+# Coverage
+*.coverprofile
+coverage.out
+coverage.html
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+logs/
+
+# Debug
+__debug_bin
+
+# Air live reload
+.air/
+tmp/main
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Database local files
+*.db
+*.sqlite
+*.sqlite3
+
+# Swagger generated files (optional)
+docs/swagger.json
+docs/swagger.yaml
+
+# Cache
+.cache/
+
+# Go workspace (optional)
+go.work
+go.work.sum
