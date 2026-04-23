@@ -25,18 +25,3 @@ func newDateID(prefix string) string {
 
 // NewUserID → USR-A1B2C3D4E5F6
 func NewUserID() string { return newID("USR") }
-
-// NewWalletID → WLT-A1B2C3D4E5F6
-func NewWalletID() string { return newID("WLT") }
-
-// NewMerchantID → MRC-A1B2C3D4E5F6
-func NewMerchantID() string { return newID("MRC") }
-
-// NewTransactionID → TXN-20260307-A1B2C3D4
-func NewTransactionID() string { return newDateID("TXN") }
-
-// NewTopUpID → TUP-20260307-A1B2C3D4
-func NewTopUpID() string { return newDateID("TUP") }
-
-// NewWebhookLogID → WHL-A1B2C3D4E5F6
-func NewWebhookLogID() string { return newID("WHL") }
