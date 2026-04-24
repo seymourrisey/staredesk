@@ -8,6 +8,7 @@ import (
 	deliveryhttp "github.com/seymourrisey/staredesk/internal/delivery/http"
 	"github.com/seymourrisey/staredesk/internal/delivery/http/handler"
 	mqttdelivery "github.com/seymourrisey/staredesk/internal/delivery/mqtt"
+	websocketdelivery "github.com/seymourrisey/staredesk/internal/delivery/websocket"
 	"github.com/seymourrisey/staredesk/internal/infrastructure/broker"
 	"github.com/seymourrisey/staredesk/internal/infrastructure/postgres"
 	"github.com/seymourrisey/staredesk/internal/usecase"
@@ -30,8 +31,14 @@ func main() {
 	// Usecases
 	authUsecase := usecase.NewAuthUsecase(userRepo, cfg.JWT.Secret)
 
-	// Handlers
+	// Handlers (HTTP)
 	authHandler := handler.NewAuthHandler(authUsecase)
+
+	// WebSocket Hub
+	hub := websocketdelivery.NewHub()
+	go hub.Run()
+
+	wsHandler := websocketdelivery.NewHandler(hub, cfg.JWT.Secret)
 
 	// MQTT
 	mqttClient, err := broker.NewMQTTClient(
@@ -46,14 +53,14 @@ func main() {
 	}
 	defer mqttClient.Disconnect()
 
-	subscriber := mqttdelivery.NewSubscriber(mqttClient, cfg.MQTT.UserID)
+	subscriber := mqttdelivery.NewSubscriber(mqttClient, cfg.MQTT.UserID, hub)
 	if err := subscriber.SubscribeAll(); err != nil {
 		log.Fatalf("MQTT subscribe failed: %v", err)
 	}
 
 	// HTTP Router
 	engine := gin.Default()
-	router := deliveryhttp.NewRouter(authHandler, cfg.JWT.Secret)
+	router := deliveryhttp.NewRouter(authHandler, wsHandler, cfg.JWT.Secret)
 	router.Setup(engine)
 
 	log.Printf("StareDesk backend starting on port %s", cfg.App.Port)
