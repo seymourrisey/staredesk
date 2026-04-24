@@ -29,6 +29,7 @@ type MQTTConfig struct {
 	Username string
 	Password string
 	ClientID string
+	UserID   string
 }
 
 type AppConfig struct {
@@ -60,6 +61,7 @@ func Load() *Config {
 			Username: mustGetEnv("MQTT_USERNAME"),
 			Password: mustGetEnv("MQTT_PASSWORD"),
 			ClientID: getEnv("MQTT_CLIENT_ID", "staredesk-backend"),
+			UserID:   mustGetEnv("MQTT_USER_ID"),
 		},
 		App: AppConfig{
 			Port: getEnv("APP_PORT", "8080"),

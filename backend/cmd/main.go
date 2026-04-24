@@ -7,6 +7,8 @@ import (
 	"github.com/seymourrisey/staredesk/config"
 	deliveryhttp "github.com/seymourrisey/staredesk/internal/delivery/http"
 	"github.com/seymourrisey/staredesk/internal/delivery/http/handler"
+	mqttdelivery "github.com/seymourrisey/staredesk/internal/delivery/mqtt"
+	"github.com/seymourrisey/staredesk/internal/infrastructure/broker"
 	"github.com/seymourrisey/staredesk/internal/infrastructure/postgres"
 	"github.com/seymourrisey/staredesk/internal/usecase"
 )
@@ -14,12 +16,13 @@ import (
 func main() {
 	cfg := config.Load()
 
+	// Database
 	db, err := postgres.NewPool(&cfg.DB)
 	if err != nil {
 		log.Fatalf("Database connection failed: %v", err)
 	}
 	defer db.Close()
-	log.Printf("Connected to database")
+	log.Println("Connected to database")
 
 	// Repositories
 	userRepo := postgres.NewUserRepository(db)
@@ -30,13 +33,31 @@ func main() {
 	// Handlers
 	authHandler := handler.NewAuthHandler(authUsecase)
 
-	// Router
+	// MQTT
+	mqttClient, err := broker.NewMQTTClient(
+		cfg.MQTT.Broker,
+		cfg.MQTT.ClientID,
+		cfg.MQTT.Username,
+		cfg.MQTT.Password,
+		cfg.MQTT.Port,
+	)
+	if err != nil {
+		log.Fatalf("MQTT connection failed: %v", err)
+	}
+	defer mqttClient.Disconnect()
+
+	subscriber := mqttdelivery.NewSubscriber(mqttClient, cfg.MQTT.UserID)
+	if err := subscriber.SubscribeAll(); err != nil {
+		log.Fatalf("MQTT subscribe failed: %v", err)
+	}
+
+	// HTTP Router
 	engine := gin.Default()
 	router := deliveryhttp.NewRouter(authHandler, cfg.JWT.Secret)
 	router.Setup(engine)
 
 	log.Printf("StareDesk backend starting on port %s", cfg.App.Port)
 	if err := engine.Run(":" + cfg.App.Port); err != nil {
-		log.Fatalf("failed to start server: %v", err)
+		log.Fatalf("Failed to start server: %v", err)
 	}
 }
