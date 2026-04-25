@@ -17,6 +17,7 @@ type Subscriber struct {
 	hub       *websocketdelivery.Hub
 	sessionUC *usecase.SessionUsecase
 	sensorUC  *usecase.SensorUsecase
+	deviceUC  *usecase.DeviceUsecase
 }
 
 // NewSubscriber membuat Subscriber baru.
@@ -26,6 +27,7 @@ func NewSubscriber(
 	hub *websocketdelivery.Hub,
 	sessionUC *usecase.SessionUsecase,
 	sensorUC *usecase.SensorUsecase,
+	deviceUC *usecase.DeviceUsecase,
 ) *Subscriber {
 	return &Subscriber{
 		client:    client,
@@ -33,6 +35,7 @@ func NewSubscriber(
 		hub:       hub,
 		sessionUC: sessionUC,
 		sensorUC:  sensorUC,
+		deviceUC:  deviceUC,
 	}
 }
 
@@ -47,14 +50,14 @@ func (s *Subscriber) SubscribeAll() error {
 
 	// device/status — QoS 1
 	t = TopicStatus(s.userID)
-	if err := s.client.Subscribe(t, QoS1, MakeStatusHandler(s.hub)); err != nil {
+	if err := s.client.Subscribe(t, QoS1, MakeStatusHandler(s.hub, s.deviceUC, s.userID)); err != nil {
 		return err
 	}
 	log.Printf("[MQTT] Subscribed: %s", t)
 
 	// device/config/ack — QoS 1
 	t = TopicConfigAck(s.userID)
-	if err := s.client.Subscribe(t, QoS1, MakeConfigAckHandler(s.hub)); err != nil {
+	if err := s.client.Subscribe(t, QoS1, MakeConfigAckHandler(s.hub, s.deviceUC, s.userID)); err != nil {
 		return err
 	}
 	log.Printf("[MQTT] Subscribed: %s", t)
@@ -71,7 +74,6 @@ type configMQTTPayload struct {
 }
 
 // PublishConfig mengirim threshold config terbaru ke ESP32 via MQTT.
-// Dipanggil oleh device_handler setelah config berhasil disimpan ke DB.
 func (s *Subscriber) PublishConfig(config *usecase.DeviceConfigPayload) error {
 	payload := configMQTTPayload{
 		DistanceMinCM:      config.DistanceMinCM,
@@ -79,17 +81,14 @@ func (s *Subscriber) PublishConfig(config *usecase.DeviceConfigPayload) error {
 		LDRThreshold:       config.LDRThreshold,
 		AwayTimeoutMinutes: config.AwayTimeoutMinutes,
 	}
-
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("failed to marshal config payload: %w", err)
 	}
-
 	topic := TopicConfig(s.userID)
 	if err := s.client.Publish(topic, QoS1, false, data); err != nil {
 		return fmt.Errorf("failed to publish config: %w", err)
 	}
-
 	log.Printf("[MQTT] Config published to %s", topic)
 	return nil
 }

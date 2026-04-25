@@ -38,9 +38,6 @@ func main() {
 	sessionUsecase := usecase.NewSessionUsecase(sessionRepo, deviceConfigRepo)
 	sensorUsecase := usecase.NewSensorUsecase(sensorLogRepo)
 
-	// Handlers (HTTP)
-	authHandler := handler.NewAuthHandler(authUsecase)
-
 	// WebSocket Hub
 	hub := websocketdelivery.NewHub()
 	go hub.Run()
@@ -59,11 +56,14 @@ func main() {
 	}
 	defer mqttClient.Disconnect()
 
-	subscriber := mqttdelivery.NewSubscriber(mqttClient, cfg.MQTT.UserID, hub, sessionUsecase, sensorUsecase)
+	// deviceUsecase ikut masuk ke subscriber sekarang
+	subscriber := mqttdelivery.NewSubscriber(mqttClient, cfg.MQTT.UserID, hub, sessionUsecase, sensorUsecase, deviceUsecase)
 	if err := subscriber.SubscribeAll(); err != nil {
 		log.Fatalf("MQTT subscribe failed: %v", err)
 	}
-	// device handler (HTTP)
+
+	// HTTP Handlers
+	authHandler := handler.NewAuthHandler(authUsecase)
 	deviceHandler := handler.NewDeviceHandler(deviceUsecase, subscriber)
 
 	// HTTP Router

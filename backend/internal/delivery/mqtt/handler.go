@@ -123,12 +123,22 @@ func MakeTelemetryHandler(
 }
 
 // MakeStatusHandler returns MQTT message handler untuk topic device/status.
-func MakeStatusHandler(hub *websocketdelivery.Hub) mqtt.MessageHandler {
+func MakeStatusHandler(
+	hub *websocketdelivery.Hub,
+	deviceUC *usecase.DeviceUsecase,
+	userID string,
+) mqtt.MessageHandler {
 	return func(client mqtt.Client, msg mqtt.Message) {
 		var payload mqttStatusPayload
 		if err := json.Unmarshal(msg.Payload(), &payload); err != nil {
 			log.Printf("[mqtt] status parse error: %v", err)
 			return
+		}
+
+		// Update device_status di DB
+		ctx := context.Background()
+		if err := deviceUC.UpdateStatus(ctx, userID, payload.IsOnline); err != nil {
+			log.Printf("[mqtt] update device status error: %v", err)
 		}
 
 		now := time.Now().UTC().Format(time.RFC3339)
@@ -151,8 +161,18 @@ func MakeStatusHandler(hub *websocketdelivery.Hub) mqtt.MessageHandler {
 }
 
 // MakeConfigAckHandler returns MQTT message handler untuk topic device/config/ack.
-func MakeConfigAckHandler(hub *websocketdelivery.Hub) mqtt.MessageHandler {
+func MakeConfigAckHandler(
+	hub *websocketdelivery.Hub,
+	deviceUC *usecase.DeviceUsecase,
+	userID string,
+) mqtt.MessageHandler {
 	return func(client mqtt.Client, msg mqtt.Message) {
+		// Update config_ack = true di DB
+		ctx := context.Background()
+		if err := deviceUC.SetConfigAck(ctx, userID, true); err != nil {
+			log.Printf("[mqtt] set config ack error: %v", err)
+		}
+
 		now := time.Now().UTC().Format(time.RFC3339)
 		wsMsg := map[string]string{
 			"type":      "config_ack",
