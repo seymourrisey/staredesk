@@ -1,6 +1,8 @@
 package mqttdelivery
 
 import (
+	"encoding/json"
+	"fmt"
 	"log"
 
 	websocketdelivery "github.com/seymourrisey/staredesk/internal/delivery/websocket"
@@ -57,5 +59,37 @@ func (s *Subscriber) SubscribeAll() error {
 	}
 	log.Printf("[MQTT] Subscribed: %s", t)
 
+	return nil
+}
+
+// configMQTTPayload adalah struktur JSON yang dikirim ke ESP32 saat config update.
+type configMQTTPayload struct {
+	DistanceMinCM      int `json:"distance_min_cm"`
+	DistanceMaxCM      int `json:"distance_max_cm"`
+	LDRThreshold       int `json:"ldr_threshold"`
+	AwayTimeoutMinutes int `json:"away_timeout_minutes"`
+}
+
+// PublishConfig mengirim threshold config terbaru ke ESP32 via MQTT.
+// Dipanggil oleh device_handler setelah config berhasil disimpan ke DB.
+func (s *Subscriber) PublishConfig(config *usecase.DeviceConfigPayload) error {
+	payload := configMQTTPayload{
+		DistanceMinCM:      config.DistanceMinCM,
+		DistanceMaxCM:      config.DistanceMaxCM,
+		LDRThreshold:       config.LDRThreshold,
+		AwayTimeoutMinutes: config.AwayTimeoutMinutes,
+	}
+
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal config payload: %w", err)
+	}
+
+	topic := TopicConfig(s.userID)
+	if err := s.client.Publish(topic, QoS1, false, data); err != nil {
+		return fmt.Errorf("failed to publish config: %w", err)
+	}
+
+	log.Printf("[MQTT] Config published to %s", topic)
 	return nil
 }

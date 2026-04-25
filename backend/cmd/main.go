@@ -29,10 +29,13 @@ func main() {
 	userRepo := postgres.NewUserRepository(db)
 	sessionRepo := postgres.NewSessionPostgres(db)
 	sensorLogRepo := postgres.NewSensorLogPostgres(db)
+	deviceConfigRepo := postgres.NewDeviceConfigPostgres(db)
+	deviceStatusRepo := postgres.NewDeviceStatusPostgres(db)
 
 	// Usecases
 	authUsecase := usecase.NewAuthUsecase(userRepo, cfg.JWT.Secret)
-	sessionUsecase := usecase.NewSessionUsecase(sessionRepo)
+	deviceUsecase := usecase.NewDeviceUsecase(deviceConfigRepo, deviceStatusRepo)
+	sessionUsecase := usecase.NewSessionUsecase(sessionRepo, deviceConfigRepo)
 	sensorUsecase := usecase.NewSensorUsecase(sensorLogRepo)
 
 	// Handlers (HTTP)
@@ -60,10 +63,12 @@ func main() {
 	if err := subscriber.SubscribeAll(); err != nil {
 		log.Fatalf("MQTT subscribe failed: %v", err)
 	}
+	// device handler (HTTP)
+	deviceHandler := handler.NewDeviceHandler(deviceUsecase, subscriber)
 
 	// HTTP Router
 	engine := gin.Default()
-	router := deliveryhttp.NewRouter(authHandler, wsHandler, cfg.JWT.Secret)
+	router := deliveryhttp.NewRouter(authHandler, deviceHandler, wsHandler, cfg.JWT.Secret)
 	router.Setup(engine)
 
 	log.Printf("StareDesk backend starting on port %s", cfg.App.Port)

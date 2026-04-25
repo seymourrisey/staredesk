@@ -23,13 +23,18 @@ type sessionState struct {
 }
 
 type SessionUsecase struct {
-	sessionRepo repository.SessionRepository
-	state       sessionState
+	sessionRepo      repository.SessionRepository
+	deviceConfigRepo repository.DeviceConfigRepository
+	state            sessionState
 }
 
-func NewSessionUsecase(sessionRepo repository.SessionRepository) *SessionUsecase {
+func NewSessionUsecase(
+	sessionRepo repository.SessionRepository,
+	deviceConfigRepo repository.DeviceConfigRepository,
+) *SessionUsecase {
 	return &SessionUsecase{
-		sessionRepo: sessionRepo,
+		sessionRepo:      sessionRepo,
+		deviceConfigRepo: deviceConfigRepo,
 		state: sessionState{
 			conditionCounts: make(map[string]int),
 		},
@@ -37,9 +42,6 @@ func NewSessionUsecase(sessionRepo repository.SessionRepository) *SessionUsecase
 }
 
 // ProcessCondition dipanggil setiap kali MQTT handler menerima telemetry.
-// userID  : dari config/env
-// condition: kondisi yang sudah dievaluasi di ESP32
-// ts      : timestamp telemetry (gunakan time.Now() jika tidak ada)
 func (u *SessionUsecase) ProcessCondition(ctx context.Context, userID, condition string, ts time.Time) error {
 	u.state.mu.Lock()
 	defer u.state.mu.Unlock()
@@ -52,21 +54,17 @@ func (u *SessionUsecase) ProcessCondition(ctx context.Context, userID, condition
 
 // handlePresent — kondisi bukan away
 func (u *SessionUsecase) handlePresent(ctx context.Context, userID, condition string, ts time.Time) error {
-	// Reset away timer setiap kali ada kehadiran
 	u.state.awayStartedAt = nil
 
-	// Jika belum ada sesi aktif, cek DB dulu (restart safety)
 	if u.state.activeSessionID == "" {
 		existing, err := u.sessionRepo.GetActiveByUserID(ctx, userID)
 		if err != nil {
 			return err
 		}
 		if existing != nil {
-			// Resume sesi yang ada di DB (misal backend restart)
 			u.state.activeSessionID = existing.ID
 			log.Printf("[session] resumed existing session %s", existing.ID)
 		} else {
-			// Mulai sesi baru
 			newSession := &entity.Session{
 				ID:        idgen.NewSessionID(),
 				UserID:    userID,
@@ -81,19 +79,16 @@ func (u *SessionUsecase) handlePresent(ctx context.Context, userID, condition st
 		}
 	}
 
-	// Catat kondisi untuk kalkulasi dominant_condition
 	u.state.conditionCounts[condition]++
 	return nil
 }
 
 // handleAway — kondisi away
 func (u *SessionUsecase) handleAway(ctx context.Context, userID string, ts time.Time) error {
-	// Tidak ada sesi aktif — tidak ada yang perlu dilakukan
 	if u.state.activeSessionID == "" {
 		return nil
 	}
 
-	// Mulai / lanjutkan away timer
 	if u.state.awayStartedAt == nil {
 		u.state.awayStartedAt = &ts
 		log.Printf("[session] away started at %s", ts.Format(time.RFC3339))
@@ -101,14 +96,13 @@ func (u *SessionUsecase) handleAway(ctx context.Context, userID string, ts time.
 	}
 
 	awayDuration := ts.Sub(*u.state.awayStartedAt)
-	timeoutDuration := time.Duration(defaultAwayTimeoutMinutes) * time.Minute
+	timeoutMinutes := u.getAwayTimeout(ctx, userID)
+	timeoutDuration := time.Duration(timeoutMinutes) * time.Minute
 
 	if awayDuration < timeoutDuration {
-		// Belum timeout — tunggu
 		return nil
 	}
 
-	// Away timeout tercapai — akhiri sesi
 	log.Printf("[session] away timeout reached (%.1f min), ending session %s",
 		awayDuration.Minutes(), u.state.activeSessionID)
 
@@ -135,7 +129,6 @@ func (u *SessionUsecase) handleAway(ctx context.Context, userID string, ts time.
 	log.Printf("[session] session %s ended — duration %ds, dominant: %s",
 		u.state.activeSessionID, durationSec, dominant)
 
-	// Reset state
 	u.state.activeSessionID = ""
 	u.state.conditionCounts = make(map[string]int)
 	u.state.awayStartedAt = nil
@@ -143,8 +136,16 @@ func (u *SessionUsecase) handleAway(ctx context.Context, userID string, ts time.
 	return nil
 }
 
+// getAwayTimeout baca dari DB, fallback ke default jika row kosong atau error.
+func (u *SessionUsecase) getAwayTimeout(ctx context.Context, userID string) int {
+	config, err := u.deviceConfigRepo.GetByUserID(ctx, userID)
+	if err != nil || config == nil {
+		return defaultAwayTimeoutMinutes
+	}
+	return config.AwayTimeoutMinutes
+}
+
 // calcDominantCondition returns kondisi dengan frekuensi terbanyak.
-// Jika kosong (tidak ada data), return "away".
 func (u *SessionUsecase) calcDominantCondition() string {
 	dominant := "away"
 	maxCount := 0
@@ -164,7 +165,6 @@ func (u *SessionUsecase) getSessionStartedAt(ctx context.Context, sessionID stri
 		return time.Time{}, err
 	}
 	if session == nil {
-		// Fallback — seharusnya tidak terjadi
 		log.Printf("[session] WARNING: session %s not found in DB during end", sessionID)
 		return time.Now(), nil
 	}
@@ -172,7 +172,6 @@ func (u *SessionUsecase) getSessionStartedAt(ctx context.Context, sessionID stri
 }
 
 // ActiveSessionID returns ID sesi aktif saat ini, atau "" jika tidak ada.
-// Digunakan oleh MQTT handler untuk inject ke WebSocket payload.
 func (u *SessionUsecase) ActiveSessionID() string {
 	u.state.mu.Lock()
 	defer u.state.mu.Unlock()
