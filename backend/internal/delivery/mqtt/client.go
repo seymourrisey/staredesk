@@ -5,21 +5,32 @@ import (
 
 	websocketdelivery "github.com/seymourrisey/staredesk/internal/delivery/websocket"
 	"github.com/seymourrisey/staredesk/internal/infrastructure/broker"
+	"github.com/seymourrisey/staredesk/internal/usecase"
 )
 
-// Subscriber memegang referensi ke MQTTClient, userID, dan WebSocket Hub.
+// Subscriber memegang referensi ke MQTTClient, userID, WebSocket Hub, dan usecase.
 type Subscriber struct {
-	client *broker.MQTTClient
-	userID string
-	hub    *websocketdelivery.Hub
+	client    *broker.MQTTClient
+	userID    string
+	hub       *websocketdelivery.Hub
+	sessionUC *usecase.SessionUsecase
+	sensorUC  *usecase.SensorUsecase
 }
 
 // NewSubscriber membuat Subscriber baru.
-func NewSubscriber(client *broker.MQTTClient, userID string, hub *websocketdelivery.Hub) *Subscriber {
+func NewSubscriber(
+	client *broker.MQTTClient,
+	userID string,
+	hub *websocketdelivery.Hub,
+	sessionUC *usecase.SessionUsecase,
+	sensorUC *usecase.SensorUsecase,
+) *Subscriber {
 	return &Subscriber{
-		client: client,
-		userID: userID,
-		hub:    hub,
+		client:    client,
+		userID:    userID,
+		hub:       hub,
+		sessionUC: sessionUC,
+		sensorUC:  sensorUC,
 	}
 }
 
@@ -27,7 +38,7 @@ func NewSubscriber(client *broker.MQTTClient, userID string, hub *websocketdeliv
 func (s *Subscriber) SubscribeAll() error {
 	// telemetry — QoS 0
 	t := TopicTelemetry(s.userID)
-	if err := s.client.Subscribe(t, QoS0, MakeTelemetryHandler(s.hub)); err != nil {
+	if err := s.client.Subscribe(t, QoS0, MakeTelemetryHandler(s.hub, s.sessionUC, s.sensorUC, s.userID)); err != nil {
 		return err
 	}
 	log.Printf("[MQTT] Subscribed: %s", t)

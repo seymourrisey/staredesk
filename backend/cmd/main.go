@@ -27,9 +27,13 @@ func main() {
 
 	// Repositories
 	userRepo := postgres.NewUserRepository(db)
+	sessionRepo := postgres.NewSessionPostgres(db)
+	sensorLogRepo := postgres.NewSensorLogPostgres(db)
 
 	// Usecases
 	authUsecase := usecase.NewAuthUsecase(userRepo, cfg.JWT.Secret)
+	sessionUsecase := usecase.NewSessionUsecase(sessionRepo)
+	sensorUsecase := usecase.NewSensorUsecase(sensorLogRepo)
 
 	// Handlers (HTTP)
 	authHandler := handler.NewAuthHandler(authUsecase)
@@ -37,7 +41,6 @@ func main() {
 	// WebSocket Hub
 	hub := websocketdelivery.NewHub()
 	go hub.Run()
-
 	wsHandler := websocketdelivery.NewHandler(hub, cfg.JWT.Secret)
 
 	// MQTT
@@ -53,7 +56,7 @@ func main() {
 	}
 	defer mqttClient.Disconnect()
 
-	subscriber := mqttdelivery.NewSubscriber(mqttClient, cfg.MQTT.UserID, hub)
+	subscriber := mqttdelivery.NewSubscriber(mqttClient, cfg.MQTT.UserID, hub, sessionUsecase, sensorUsecase)
 	if err := subscriber.SubscribeAll(); err != nil {
 		log.Fatalf("MQTT subscribe failed: %v", err)
 	}

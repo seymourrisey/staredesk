@@ -23,5 +23,8 @@ func newDateID(prefix string) string {
 	return fmt.Sprintf("%s-%s-%s", prefix, date, strings.ToUpper(raw))
 }
 
-// NewUserID → USR-A1B2C3D4E5F6
-func NewUserID() string { return newID("USR") }
+func NewUserID() string         { return newID("USR") }
+func NewSensorLogID() string    { return newID("SLG") }
+func NewSessionID() string      { return newID("SSN") }
+func NewDeviceConfigID() string { return newID("CFG") }
+func NewDeviceStatusID() string { return newID("DST") }
