@@ -16,8 +16,16 @@ func NewSensorUsecase(sensorLogRepo repository.SensorLogRepository) *SensorUseca
 	return &SensorUsecase{sensorLogRepo: sensorLogRepo}
 }
 
-// Save menyimpan satu entri sensor log ke DB.
-// logType: "heartbeat" | "condition_change"
+// SensorPayload adalah DTO dari MQTT telemetry yang sudah di-parse.
+type SensorPayload struct {
+	DistanceCM  *float64 `json:"distance_cm"`
+	LDRValue    *int     `json:"ldr_value"`
+	PIRDetected bool     `json:"pir_detected"`
+	Condition   string   `json:"condition"`
+	LogType     string   `json:"log_type"`
+}
+
+// Create menyimpan satu entri sensor log ke DB.
 func (u *SensorUsecase) Create(ctx context.Context, userID string, payload *SensorPayload, logType string) error {
 	log := &entity.SensorLog{
 		UserID:      userID,
@@ -31,11 +39,14 @@ func (u *SensorUsecase) Create(ctx context.Context, userID string, payload *Sens
 	return u.sensorLogRepo.Create(ctx, log)
 }
 
-// SensorPayload adalah DTO dari MQTT telemetry yang sudah di-parse.
-type SensorPayload struct {
-	DistanceCM  *float64 `json:"distance_cm"`
-	LDRValue    *int     `json:"ldr_value"`
-	PIRDetected bool     `json:"pir_detected"`
-	Condition   string   `json:"condition"`
-	LogType     string   `json:"log_type"`
+// GetLogs mengembalikan raw sensor logs untuk debug/inspection.
+func (u *SensorUsecase) GetLogs(ctx context.Context, userID string, from, to time.Time, limit int) ([]*entity.SensorLog, error) {
+	logs, err := u.sensorLogRepo.GetByDateRange(ctx, userID, from, to, limit)
+	if err != nil {
+		return nil, err
+	}
+	if logs == nil {
+		logs = []*entity.SensorLog{}
+	}
+	return logs, nil
 }

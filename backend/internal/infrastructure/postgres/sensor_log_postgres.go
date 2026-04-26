@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/seymourrisey/staredesk/internal/entity"
@@ -36,20 +37,17 @@ func (r *SensorLogPostgres) Create(ctx context.Context, log *entity.SensorLog) e
 	return err
 }
 
-func (r *SensorLogPostgres) GetBySessionID(ctx context.Context, sessionID string) ([]*entity.SensorLog, error) {
-	// Fetch logs that fall within the session's time range.
-	// We join against sessions to get started_at / ended_at.
+func (r *SensorLogPostgres) GetByDateRange(ctx context.Context, userID string, from time.Time, to time.Time, limit int) ([]*entity.SensorLog, error) {
 	query := `
-		SELECT sl.id, sl.user_id, sl.distance_cm, sl.ldr_value, sl.pir_detected,
-		       sl.condition, sl.log_type, sl.recorded_at
-		FROM sensor_logs sl
-		JOIN sessions s ON sl.user_id = s.user_id
-		WHERE s.id = $1
-		  AND sl.recorded_at >= s.started_at
-		  AND (s.ended_at IS NULL OR sl.recorded_at <= s.ended_at)
-		ORDER BY sl.recorded_at ASC
+		SELECT id, user_id, distance_cm, ldr_value, pir_detected, condition, log_type, recorded_at
+		FROM sensor_logs
+		WHERE user_id = $1
+		  AND recorded_at >= $2
+		  AND recorded_at < $3
+		ORDER BY recorded_at DESC
+		LIMIT $4
 	`
-	rows, err := r.db.Query(ctx, query, sessionID)
+	rows, err := r.db.Query(ctx, query, userID, from, to, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -58,17 +56,10 @@ func (r *SensorLogPostgres) GetBySessionID(ctx context.Context, sessionID string
 	var logs []*entity.SensorLog
 	for rows.Next() {
 		l := &entity.SensorLog{}
-		err := rows.Scan(
-			&l.ID,
-			&l.UserID,
-			&l.DistanceCM,
-			&l.LDRValue,
-			&l.PIRDetected,
-			&l.Condition,
-			&l.LogType,
-			&l.RecordedAt,
-		)
-		if err != nil {
+		if err := rows.Scan(
+			&l.ID, &l.UserID, &l.DistanceCM, &l.LDRValue,
+			&l.PIRDetected, &l.Condition, &l.LogType, &l.RecordedAt,
+		); err != nil {
 			return nil, err
 		}
 		logs = append(logs, l)
