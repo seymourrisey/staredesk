@@ -31,12 +31,14 @@ func main() {
 	sensorLogRepo := postgres.NewSensorLogPostgres(db)
 	deviceConfigRepo := postgres.NewDeviceConfigPostgres(db)
 	deviceStatusRepo := postgres.NewDeviceStatusPostgres(db)
+	analyticsRepo := postgres.NewAnalyticsPostgres(db)
 
 	// Usecases
 	authUsecase := usecase.NewAuthUsecase(userRepo, cfg.JWT.Secret)
 	deviceUsecase := usecase.NewDeviceUsecase(deviceConfigRepo, deviceStatusRepo)
 	sessionUsecase := usecase.NewSessionUsecase(sessionRepo, deviceConfigRepo)
 	sensorUsecase := usecase.NewSensorUsecase(sensorLogRepo)
+	analyticsUsecase := usecase.NewAnalyticsUsecase(analyticsRepo)
 
 	// WebSocket Hub
 	hub := websocketdelivery.NewHub()
@@ -56,7 +58,6 @@ func main() {
 	}
 	defer mqttClient.Disconnect()
 
-	// deviceUsecase ikut masuk ke subscriber sekarang
 	subscriber := mqttdelivery.NewSubscriber(mqttClient, cfg.MQTT.UserID, hub, sessionUsecase, sensorUsecase, deviceUsecase)
 	if err := subscriber.SubscribeAll(); err != nil {
 		log.Fatalf("MQTT subscribe failed: %v", err)
@@ -65,10 +66,13 @@ func main() {
 	// HTTP Handlers
 	authHandler := handler.NewAuthHandler(authUsecase)
 	deviceHandler := handler.NewDeviceHandler(deviceUsecase, subscriber)
+	sessionHandler := handler.NewSessionHandler(sessionUsecase)
+	analyticsHandler := handler.NewAnalyticsHandler(analyticsUsecase)
+	sensorHandler := handler.NewSensorHandler(sensorUsecase)
 
 	// HTTP Router
 	engine := gin.Default()
-	router := deliveryhttp.NewRouter(authHandler, deviceHandler, wsHandler, cfg.JWT.Secret)
+	router := deliveryhttp.NewRouter(authHandler, deviceHandler, sessionHandler, analyticsHandler, sensorHandler, wsHandler, cfg.JWT.Secret)
 	router.Setup(engine)
 
 	log.Printf("StareDesk backend starting on port %s", cfg.App.Port)

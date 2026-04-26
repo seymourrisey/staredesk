@@ -13,8 +13,6 @@ import (
 
 const defaultAwayTimeoutMinutes = 5
 
-// sessionState holds in-memory state for the current session.
-// Single user — satu instance cukup.
 type sessionState struct {
 	mu              sync.Mutex
 	activeSessionID string
@@ -52,7 +50,6 @@ func (u *SessionUsecase) ProcessCondition(ctx context.Context, userID, condition
 	return u.handlePresent(ctx, userID, condition, ts)
 }
 
-// handlePresent — kondisi bukan away
 func (u *SessionUsecase) handlePresent(ctx context.Context, userID, condition string, ts time.Time) error {
 	u.state.awayStartedAt = nil
 
@@ -83,7 +80,6 @@ func (u *SessionUsecase) handlePresent(ctx context.Context, userID, condition st
 	return nil
 }
 
-// handleAway — kondisi away
 func (u *SessionUsecase) handleAway(ctx context.Context, userID string, ts time.Time) error {
 	if u.state.activeSessionID == "" {
 		return nil
@@ -136,7 +132,6 @@ func (u *SessionUsecase) handleAway(ctx context.Context, userID string, ts time.
 	return nil
 }
 
-// getAwayTimeout baca dari DB, fallback ke default jika row kosong atau error.
 func (u *SessionUsecase) getAwayTimeout(ctx context.Context, userID string) int {
 	config, err := u.deviceConfigRepo.GetByUserID(ctx, userID)
 	if err != nil || config == nil {
@@ -145,7 +140,6 @@ func (u *SessionUsecase) getAwayTimeout(ctx context.Context, userID string) int 
 	return config.AwayTimeoutMinutes
 }
 
-// calcDominantCondition returns kondisi dengan frekuensi terbanyak.
 func (u *SessionUsecase) calcDominantCondition() string {
 	dominant := "away"
 	maxCount := 0
@@ -158,7 +152,6 @@ func (u *SessionUsecase) calcDominantCondition() string {
 	return dominant
 }
 
-// getSessionStartedAt fetch started_at dari DB untuk kalkulasi duration.
 func (u *SessionUsecase) getSessionStartedAt(ctx context.Context, sessionID string) (time.Time, error) {
 	session, err := u.sessionRepo.GetActiveByUserID(ctx, u.state.activeSessionID)
 	if err != nil {
@@ -171,16 +164,103 @@ func (u *SessionUsecase) getSessionStartedAt(ctx context.Context, sessionID stri
 	return session.StartedAt, nil
 }
 
-// ActiveSessionID returns ID sesi aktif saat ini, atau "" jika tidak ada.
 func (u *SessionUsecase) ActiveSessionID() string {
 	u.state.mu.Lock()
 	defer u.state.mu.Unlock()
 	return u.state.activeSessionID
 }
 
-// IsSessionActive returns true jika ada sesi yang sedang berjalan.
 func (u *SessionUsecase) IsSessionActive() bool {
 	u.state.mu.Lock()
 	defer u.state.mu.Unlock()
 	return u.state.activeSessionID != ""
+}
+
+// --- REST API methods ---
+
+// SessionListResult adalah hasil GetAll dengan pagination info.
+type SessionListResult struct {
+	Sessions []*entity.Session
+	Total    int
+	Limit    int
+	Offset   int
+}
+
+// SessionSummaryResult adalah hasil GetSummary untuk range tertentu.
+type SessionSummaryResult struct {
+	Range        string
+	TotalSec     int
+	SessionCount int
+	Sessions     []*entity.Session
+}
+
+// GetAll mengembalikan list sesi selesai dengan pagination.
+func (u *SessionUsecase) GetAll(ctx context.Context, userID string, limit, offset int) (*SessionListResult, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	sessions, total, err := u.sessionRepo.GetAll(ctx, userID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	if sessions == nil {
+		sessions = []*entity.Session{}
+	}
+
+	return &SessionListResult{
+		Sessions: sessions,
+		Total:    total,
+		Limit:    limit,
+		Offset:   offset,
+	}, nil
+}
+
+// GetByID mengembalikan detail satu sesi.
+func (u *SessionUsecase) GetByID(ctx context.Context, id, userID string) (*entity.Session, error) {
+	return u.sessionRepo.GetByID(ctx, id, userID)
+}
+
+// GetSummary mengembalikan ringkasan sesi untuk range today/week/month.
+func (u *SessionUsecase) GetSummary(ctx context.Context, userID, rangeParam string) (*SessionSummaryResult, error) {
+	now := time.Now()
+	var from, to time.Time
+
+	switch rangeParam {
+	case "week":
+		from = now.AddDate(0, 0, -7)
+		to = now
+	case "month":
+		from = now.AddDate(0, -1, 0)
+		to = now
+	default: // "today"
+		from = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+		to = from.Add(24 * time.Hour)
+		rangeParam = "today"
+	}
+
+	sessions, err := u.sessionRepo.GetByDateRange(ctx, userID, from, to)
+	if err != nil {
+		return nil, err
+	}
+	if sessions == nil {
+		sessions = []*entity.Session{}
+	}
+
+	totalSec := 0
+	for _, s := range sessions {
+		if s.DurationSec != nil {
+			totalSec += *s.DurationSec
+		}
+	}
+
+	return &SessionSummaryResult{
+		Range:        rangeParam,
+		TotalSec:     totalSec,
+		SessionCount: len(sessions),
+		Sessions:     sessions,
+	}, nil
 }
