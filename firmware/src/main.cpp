@@ -4,34 +4,43 @@
 #include "sensors/ldr.h"
 #include "sensors/condition.h"
 #include "utils/moving_average.h"
+#include "mqtt/client.h"
 #include "config/config.h"
 
 MovingAverage distanceAvg(MOVING_AVG_WINDOW);
 
-// Threshold aktif (akan di-override via MQTT config nanti)
-int distanceMin = DEFAULT_DISTANCE_MIN_CM;
-int distanceMax = DEFAULT_DISTANCE_MAX_CM;
-int ldrThreshold = DEFAULT_LDR_THRESHOLD;
+Condition     lastCondition    = CONDITION_AWAY;
+unsigned long lastHeartbeat    = 0;
+unsigned long lastSampleTime   = 0;
 
 void setup() {
     Serial.begin(115200);
     pirSetup();
     ultrasonicSetup();
     ldrSetup();
+    mqttSetup();
     Serial.println("[StareDesk] Boot OK");
 }
 
 void loop() {
-    bool  pir     = pirRead();
-    float rawDist = ultrasonicRead();
-    int   ldr     = ldrRead();
+    mqttLoop();
+
+    unsigned long now = millis();
+
+    // Baca sensor setiap SENSOR_SAMPLE_INTERVAL_MS
+    if (now - lastSampleTime < SENSOR_SAMPLE_INTERVAL_MS) return;
+    lastSampleTime = now;
+
+    bool  pir      = pirRead();
+    float rawDist  = ultrasonicRead();
+    int   ldr      = ldrRead();
 
     distanceAvg.add(rawDist);
     float distance = distanceAvg.get();
 
     Condition condition = evaluateCondition(
         pir, distance, ldr,
-        distanceMin, distanceMax, ldrThreshold
+        mqttDistanceMin, mqttDistanceMax, mqttLdrThreshold
     );
 
     Serial.println("─────────────────────────");
@@ -40,5 +49,13 @@ void loop() {
     Serial.printf("LDR      : %d\n", ldr);
     Serial.printf("Condition: %s\n", conditionToString(condition));
 
-    delay(SENSOR_SAMPLE_INTERVAL_MS);
+    bool conditionChanged = (condition != lastCondition);
+    bool heartbeatDue     = (now - lastHeartbeat >= HEARTBEAT_INTERVAL_MS);
+
+    if (conditionChanged || heartbeatDue) {
+        mqttPublishTelemetry(pir, distance, ldr, conditionToString(condition));
+        lastHeartbeat = now;
+    }
+
+    lastCondition = condition;
 }
