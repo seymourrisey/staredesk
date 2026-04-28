@@ -67,7 +67,7 @@ func MakeTelemetryHandler(
 		}
 
 		ctx := context.Background()
-		now := time.Now()
+		now := time.Now().UTC()
 
 		// 1. Process session logic
 		if err := sessionUC.ProcessCondition(ctx, userID, payload.Condition, now); err != nil {
