@@ -104,7 +104,7 @@ func (u *SessionUsecase) handleAway(ctx context.Context, userID string, ts time.
 
 	dominant := u.calcDominantCondition()
 	endedAt := ts
-	startedAt, err := u.getSessionStartedAt(ctx, u.state.activeSessionID)
+	startedAt, err := u.getSessionStartedAt(ctx, u.state.activeSessionID, userID)
 	if err != nil {
 		return err
 	}
@@ -152,8 +152,8 @@ func (u *SessionUsecase) calcDominantCondition() string {
 	return dominant
 }
 
-func (u *SessionUsecase) getSessionStartedAt(ctx context.Context, sessionID string) (time.Time, error) {
-	session, err := u.sessionRepo.GetActiveByUserID(ctx, u.state.activeSessionID)
+func (u *SessionUsecase) getSessionStartedAt(ctx context.Context, sessionID, userID string) (time.Time, error) {
+	session, err := u.sessionRepo.GetByID(ctx, sessionID, userID)
 	if err != nil {
 		return time.Time{}, err
 	}
