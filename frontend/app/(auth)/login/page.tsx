@@ -1,8 +1,31 @@
 "use client";
 
 import Image from "next/image";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { login } from "@/lib/api";
 
 export default function LoginPage() {
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleLogin() {
+    setError("");
+    setLoading(true);
+    try {
+      const token = await login(email, password);
+      localStorage.setItem("token", token);
+      router.push("/dashboard");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Login failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="min-h-screen flex">
       {/* LEFT PANEL */}
@@ -10,10 +33,7 @@ export default function LoginPage() {
 
       {/* RIGHT PANEL */}
       <div className="flex-40 flex flex-col items-center justify-center bg-white">
-        <form
-          action=""
-          className="flex flex-col gap-2 items-center w-full max-w-sm px-8"
-        >
+        <div className="flex flex-col gap-2 items-center w-full max-w-sm px-8">
           <Image
             src="/staredesk-logo.svg"
             alt="StareDesk"
@@ -28,6 +48,8 @@ export default function LoginPage() {
             <input
               type="email"
               placeholder="user@domain.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               className="border-2 px-3 py-2 rounded-[5px] shadow-sm shadow-gray-800 placeholder:font-semibold"
             />
           </div>
@@ -37,17 +59,23 @@ export default function LoginPage() {
             <input
               type="password"
               placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleLogin()}
               className="border-2 px-3 py-2 rounded-[5px] shadow-sm shadow-gray-800 placeholder:font-semibold"
             />
           </div>
 
+          {error && <p className="text-red-500 text-sm w-full">{error}</p>}
+
           <button
-            type="submit"
-            className="border-2 flex w-fit justify-center px-12 py-2 mt-4 items-center font-bold bg-[#FDB833] rounded-[5px] hover:bg-[#e8960f] transition-colors"
+            onClick={handleLogin}
+            disabled={loading}
+            className="border-2 flex w-fit justify-center px-12 py-2 mt-4 items-center font-bold bg-[#FDB833] rounded-[5px] hover:bg-[#e8960f] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            LOGIN
+            {loading ? "LOGGING IN..." : "LOGIN"}
           </button>
-        </form>
+        </div>
       </div>
     </div>
   );

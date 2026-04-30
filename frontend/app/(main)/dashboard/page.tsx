@@ -15,7 +15,7 @@ export default function DashboardPage() {
           <h1>ONLINE</h1>
         </div>
 
-        <div className="relative border-2 w-full max-w-100 p-5 mt-5 md:mt-0 flex flex-col gap-6 rounded-xs">
+        <div className="relative bg-white border-2 w-full max-w-100 p-5 mt-5 md:mt-0 flex flex-col gap-6 rounded-xs">
           <Image
             src="/optimal.png"
             alt="optimal"
@@ -59,7 +59,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="border-2 rounded-xs flex flex-col w-full max-w-100 mt-5 md:mt-3 overflow-hidden">
+        <div className="border-2 bg-white rounded-xs flex flex-col w-full max-w-100 mt-5 md:mt-3 overflow-hidden">
           <p className="px-4 py-2 border-b-2 text-md font-bold bg-[#eeeeee] tracking-wide">
             TODAY&apos;S SUMMARY
           </p>
@@ -94,7 +94,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="border-2 mt-5 md:mt-3 xl:mt-0 w-full max-w-100 rounded-xs overflow-hidden">
+      <div className="border-2 bg-white mt-5 md:mt-3 xl:mt-0 w-full max-w-100 rounded-xs overflow-hidden">
         <h1 className="px-4 py-2 border-b-2 text-md font-bold bg-[#eeeeee] tracking-wide">
           LIVE TELEMETRY
         </h1>
