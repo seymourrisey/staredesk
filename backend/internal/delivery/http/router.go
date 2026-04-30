@@ -1,6 +1,7 @@
 package http
 
 import (
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/seymourrisey/staredesk/internal/delivery/http/handler"
 	"github.com/seymourrisey/staredesk/internal/delivery/http/middleware"
@@ -15,6 +16,7 @@ type Router struct {
 	sensorHandler    *handler.SensorHandler
 	wsHandler        *websocketdelivery.Handler
 	jwtSecret        string
+	allowedOrigins   string
 }
 
 func NewRouter(
@@ -25,6 +27,7 @@ func NewRouter(
 	sensorHandler *handler.SensorHandler,
 	wsHandler *websocketdelivery.Handler,
 	jwtSecret string,
+	allowedOrigins string,
 ) *Router {
 	return &Router{
 		authHandler:      authHandler,
@@ -34,10 +37,18 @@ func NewRouter(
 		sensorHandler:    sensorHandler,
 		wsHandler:        wsHandler,
 		jwtSecret:        jwtSecret,
+		allowedOrigins:   allowedOrigins,
 	}
 }
 
 func (r *Router) Setup(engine *gin.Engine) {
+	engine.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{r.allowedOrigins},
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+	}))
 	auth := engine.Group("/auth")
 	{
 		auth.POST("/login", r.authHandler.Login)

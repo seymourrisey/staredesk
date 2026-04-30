@@ -72,7 +72,8 @@ func main() {
 
 	// HTTP Router
 	engine := gin.Default()
-	router := deliveryhttp.NewRouter(authHandler, deviceHandler, sessionHandler, analyticsHandler, sensorHandler, wsHandler, cfg.JWT.Secret)
+	log.Printf("CORS allowed origins: %s", cfg.App.AllowedOrigins)
+	router := deliveryhttp.NewRouter(authHandler, deviceHandler, sessionHandler, analyticsHandler, sensorHandler, wsHandler, cfg.JWT.Secret, cfg.App.AllowedOrigins)
 	router.Setup(engine)
 
 	log.Printf("StareDesk backend starting on port %s", cfg.App.Port)
