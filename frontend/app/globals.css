@@ -1,0 +1,7 @@
+@import "tailwindcss";
+
+body {
+  background-image: url("../public/background.svg");
+  background-repeat: no-repeat;
+  background-position: center;
+}
