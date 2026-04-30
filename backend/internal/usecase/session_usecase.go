@@ -39,8 +39,17 @@ func NewSessionUsecase(
 	}
 }
 
-// ProcessCondition dipanggil setiap kali MQTT handler menerima telemetry.
-func (u *SessionUsecase) ProcessCondition(ctx context.Context, userID, condition string, ts time.Time) error {
+// SessionEvent adalah event yang dikembalikan ProcessCondition ke caller.
+type SessionEvent string
+
+const (
+	SessionEventNone  SessionEvent = ""
+	SessionEventStart SessionEvent = "session_start"
+	SessionEventEnd   SessionEvent = "session_end"
+)
+
+// ProcessCondition sekarang return SessionEvent selain error.
+func (u *SessionUsecase) ProcessCondition(ctx context.Context, userID, condition string, ts time.Time) (SessionEvent, error) {
 	u.state.mu.Lock()
 	defer u.state.mu.Unlock()
 
@@ -50,13 +59,14 @@ func (u *SessionUsecase) ProcessCondition(ctx context.Context, userID, condition
 	return u.handlePresent(ctx, userID, condition, ts)
 }
 
-func (u *SessionUsecase) handlePresent(ctx context.Context, userID, condition string, ts time.Time) error {
+func (u *SessionUsecase) handlePresent(ctx context.Context, userID, condition string, ts time.Time) (SessionEvent, error) {
 	u.state.awayStartedAt = nil
+	event := SessionEventNone
 
 	if u.state.activeSessionID == "" {
 		existing, err := u.sessionRepo.GetActiveByUserID(ctx, userID)
 		if err != nil {
-			return err
+			return SessionEventNone, err
 		}
 		if existing != nil {
 			u.state.activeSessionID = existing.ID
@@ -68,27 +78,28 @@ func (u *SessionUsecase) handlePresent(ctx context.Context, userID, condition st
 				StartedAt: ts,
 			}
 			if err := u.sessionRepo.Create(ctx, newSession); err != nil {
-				return err
+				return SessionEventNone, err
 			}
 			u.state.activeSessionID = newSession.ID
 			u.state.conditionCounts = make(map[string]int)
 			log.Printf("[session] started new session %s", newSession.ID)
+			event = SessionEventStart
 		}
 	}
 
 	u.state.conditionCounts[condition]++
-	return nil
+	return event, nil
 }
 
-func (u *SessionUsecase) handleAway(ctx context.Context, userID string, ts time.Time) error {
+func (u *SessionUsecase) handleAway(ctx context.Context, userID string, ts time.Time) (SessionEvent, error) {
 	if u.state.activeSessionID == "" {
-		return nil
+		return SessionEventNone, nil
 	}
 
 	if u.state.awayStartedAt == nil {
 		u.state.awayStartedAt = &ts
 		log.Printf("[session] away started at %s", ts.Format(time.RFC3339))
-		return nil
+		return SessionEventNone, nil
 	}
 
 	awayDuration := ts.Sub(*u.state.awayStartedAt)
@@ -96,7 +107,7 @@ func (u *SessionUsecase) handleAway(ctx context.Context, userID string, ts time.
 	timeoutDuration := time.Duration(timeoutMinutes) * time.Minute
 
 	if awayDuration < timeoutDuration {
-		return nil
+		return SessionEventNone, nil
 	}
 
 	log.Printf("[session] away timeout reached (%.1f min), ending session %s",
@@ -106,11 +117,10 @@ func (u *SessionUsecase) handleAway(ctx context.Context, userID string, ts time.
 	endedAt := ts
 	startedAt, err := u.getSessionStartedAt(ctx, u.state.activeSessionID, userID)
 	if err != nil {
-		return err
+		return SessionEventNone, err
 	}
 
 	durationSec := int(ts.Sub(startedAt).Seconds())
-
 	updated := &entity.Session{
 		ID:                u.state.activeSessionID,
 		EndedAt:           &endedAt,
@@ -119,17 +129,19 @@ func (u *SessionUsecase) handleAway(ctx context.Context, userID string, ts time.
 	}
 
 	if err := u.sessionRepo.Update(ctx, updated); err != nil {
-		return err
+		return SessionEventNone, err
 	}
 
 	log.Printf("[session] session %s ended — duration %ds, dominant: %s",
 		u.state.activeSessionID, durationSec, dominant)
 
+	endedSessionID := u.state.activeSessionID
 	u.state.activeSessionID = ""
 	u.state.conditionCounts = make(map[string]int)
 	u.state.awayStartedAt = nil
 
-	return nil
+	_ = endedSessionID // akan dipakai di handler untuk payload
+	return SessionEventEnd, nil
 }
 
 func (u *SessionUsecase) getAwayTimeout(ctx context.Context, userID string) int {

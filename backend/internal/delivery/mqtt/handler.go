@@ -69,12 +69,38 @@ func MakeTelemetryHandler(
 		ctx := context.Background()
 		now := time.Now().UTC()
 
-		// 1. Process session logic
-		if err := sessionUC.ProcessCondition(ctx, userID, payload.Condition, now); err != nil {
+		// 1. Process session logic — terima event
+		event, err := sessionUC.ProcessCondition(ctx, userID, payload.Condition, now)
+		if err != nil {
 			log.Printf("[mqtt] session process error: %v", err)
 		}
 
-		// 2. Persist sensor log
+		// 2. Broadcast session_start jika ada
+		if event == usecase.SessionEventStart {
+			wsSessionStart := map[string]interface{}{
+				"type":       "session_start",
+				"timestamp":  now.Format(time.RFC3339),
+				"started_at": now.Format(time.RFC3339),
+			}
+			if data, err := json.Marshal(wsSessionStart); err == nil {
+				hub.Broadcast <- data
+				log.Printf("[mqtt] session_start broadcasted")
+			}
+		}
+
+		// 3. Broadcast session_end jika ada
+		if event == usecase.SessionEventEnd {
+			wsSessionEnd := map[string]interface{}{
+				"type":      "session_end",
+				"timestamp": now.Format(time.RFC3339),
+			}
+			if data, err := json.Marshal(wsSessionEnd); err == nil {
+				hub.Broadcast <- data
+				log.Printf("[mqtt] session_end broadcasted")
+			}
+		}
+
+		// 4. Persist sensor log
 		sensorPayload := &usecase.SensorPayload{
 			DistanceCM:  payload.DistanceCM,
 			LDRValue:    payload.LDRValue,
@@ -90,13 +116,13 @@ func MakeTelemetryHandler(
 			log.Printf("[mqtt] sensor log error: %v", err)
 		}
 
-		// 3. Build & broadcast WebSocket payload
+		// 5. Build & broadcast telemetry WebSocket payload
 		wsMsg := wsPayload{
 			Type:      "telemetry",
-			Timestamp: now.UTC().Format(time.RFC3339),
+			Timestamp: now.Format(time.RFC3339),
 			Device: wsDeviceInfo{
 				IsOnline: true,
-				LastSeen: now.UTC().Format(time.RFC3339),
+				LastSeen: now.Format(time.RFC3339),
 			},
 			Sensors: &wsSensorInfo{
 				DistanceCM:  payload.DistanceCM,

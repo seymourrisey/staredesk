@@ -33,7 +33,8 @@ type MQTTConfig struct {
 }
 
 type AppConfig struct {
-	Port string
+	Port           string
+	AllowedOrigins string
 }
 
 func Load() *Config {
@@ -64,7 +65,8 @@ func Load() *Config {
 			UserID:   mustGetEnv("MQTT_USER_ID"),
 		},
 		App: AppConfig{
-			Port: getEnv("APP_PORT", "8080"),
+			Port:           getEnv("APP_PORT", "8080"),
+			AllowedOrigins: getEnv("ALLOWED_ORIGINS", "http://localhost:3000"),
 		},
 	}
 }
