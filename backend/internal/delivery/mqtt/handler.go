@@ -116,6 +116,15 @@ func MakeTelemetryHandler(
 			log.Printf("[mqtt] sensor log error: %v", err)
 		}
 
+		sessionInfo := &wsSessionInfo{
+			IsActive: sessionUC.IsSessionActive(),
+		}
+		if sessionInfo.IsActive {
+			if t := sessionUC.ActiveSessionStartedAt(); t != nil {
+				sessionInfo.StartedAt = t.Format(time.RFC3339)
+			}
+		}
+
 		// 5. Build & broadcast telemetry WebSocket payload
 		wsMsg := wsPayload{
 			Type:      "telemetry",
@@ -130,9 +139,7 @@ func MakeTelemetryHandler(
 				PIRDetected: payload.PIRDetected,
 			},
 			Condition: payload.Condition,
-			Session: &wsSessionInfo{
-				IsActive: sessionUC.IsSessionActive(),
-			},
+			Session:   sessionInfo,
 		}
 
 		if payload.LogType == "condition_change" {
