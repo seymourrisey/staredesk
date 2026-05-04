@@ -14,10 +14,11 @@ import (
 const defaultAwayTimeoutMinutes = 5
 
 type sessionState struct {
-	mu              sync.Mutex
-	activeSessionID string
-	conditionCounts map[string]int
-	awayStartedAt   *time.Time
+	mu               sync.Mutex
+	activeSessionID  string
+	sessionStartedAt *time.Time // tambah ini
+	conditionCounts  map[string]int
+	awayStartedAt    *time.Time
 }
 
 type SessionUsecase struct {
@@ -70,6 +71,7 @@ func (u *SessionUsecase) handlePresent(ctx context.Context, userID, condition st
 		}
 		if existing != nil {
 			u.state.activeSessionID = existing.ID
+			u.state.sessionStartedAt = &existing.StartedAt
 			log.Printf("[session] resumed existing session %s", existing.ID)
 		} else {
 			newSession := &entity.Session{
@@ -81,6 +83,7 @@ func (u *SessionUsecase) handlePresent(ctx context.Context, userID, condition st
 				return SessionEventNone, err
 			}
 			u.state.activeSessionID = newSession.ID
+			u.state.sessionStartedAt = &newSession.StartedAt
 			u.state.conditionCounts = make(map[string]int)
 			log.Printf("[session] started new session %s", newSession.ID)
 			event = SessionEventStart
@@ -137,6 +140,7 @@ func (u *SessionUsecase) handleAway(ctx context.Context, userID string, ts time.
 
 	endedSessionID := u.state.activeSessionID
 	u.state.activeSessionID = ""
+	u.state.sessionStartedAt = nil
 	u.state.conditionCounts = make(map[string]int)
 	u.state.awayStartedAt = nil
 
@@ -186,6 +190,12 @@ func (u *SessionUsecase) IsSessionActive() bool {
 	u.state.mu.Lock()
 	defer u.state.mu.Unlock()
 	return u.state.activeSessionID != ""
+}
+
+func (u *SessionUsecase) ActiveSessionStartedAt() *time.Time {
+	u.state.mu.Lock()
+	defer u.state.mu.Unlock()
+	return u.state.sessionStartedAt
 }
 
 // --- REST API methods ---
