@@ -60,6 +60,43 @@ func (u *SessionUsecase) ProcessCondition(ctx context.Context, userID, condition
 	return u.handlePresent(ctx, userID, condition, ts)
 }
 
+// ForceEndSession menutup sesi aktif secara paksa — dipanggil saat device offline.
+func (u *SessionUsecase) ForceEndSession(ctx context.Context, userID string, ts time.Time) error {
+	u.state.mu.Lock()
+	defer u.state.mu.Unlock()
+
+	if u.state.activeSessionID == "" {
+		return nil
+	}
+
+	dominant := u.calcDominantCondition()
+	startedAt, err := u.getSessionStartedAt(ctx, u.state.activeSessionID, userID)
+	if err != nil {
+		return err
+	}
+
+	durationSec := int(ts.Sub(startedAt).Seconds())
+	updated := &entity.Session{
+		ID:                u.state.activeSessionID,
+		EndedAt:           &ts,
+		DurationSec:       &durationSec,
+		DominantCondition: &dominant,
+	}
+
+	if err := u.sessionRepo.Update(ctx, updated); err != nil {
+		return err
+	}
+
+	log.Printf("[session] force ended session %s — duration %ds, dominant: %s",
+		u.state.activeSessionID, durationSec, dominant)
+
+	u.state.activeSessionID = ""
+	u.state.conditionCounts = make(map[string]int)
+	u.state.awayStartedAt = nil
+
+	return nil
+}
+
 func (u *SessionUsecase) handlePresent(ctx context.Context, userID, condition string, ts time.Time) (SessionEvent, error) {
 	u.state.awayStartedAt = nil
 	event := SessionEventNone

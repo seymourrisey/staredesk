@@ -159,6 +159,7 @@ func MakeTelemetryHandler(
 func MakeStatusHandler(
 	hub *websocketdelivery.Hub,
 	deviceUC *usecase.DeviceUsecase,
+	sessionUC *usecase.SessionUsecase,
 	userID string,
 ) mqtt.MessageHandler {
 	return func(client mqtt.Client, msg mqtt.Message) {
@@ -168,19 +169,37 @@ func MakeStatusHandler(
 			return
 		}
 
-		// Update device_status di DB
 		ctx := context.Background()
+		now := time.Now().UTC()
+
+		// Update device_status di DB
 		if err := deviceUC.UpdateStatus(ctx, userID, payload.IsOnline); err != nil {
 			log.Printf("[mqtt] update device status error: %v", err)
 		}
 
-		now := time.Now().UTC().Format(time.RFC3339)
+		// Device offline => force end active session
+		if !payload.IsOnline && sessionUC.IsSessionActive() {
+			log.Printf("[mqtt] device offline — force ending active session")
+			if err := sessionUC.ForceEndSession(ctx, userID, now); err != nil {
+				log.Printf("[mqtt] force end session error: %v", err)
+			} else {
+				// Broadcast session_end
+				wsSessionEnd := map[string]interface{}{
+					"type":      "session_end",
+					"timestamp": now.Format(time.RFC3339),
+				}
+				if data, err := json.Marshal(wsSessionEnd); err == nil {
+					hub.Broadcast <- data
+				}
+			}
+		}
+
 		wsMsg := wsPayload{
 			Type:      "device_status",
-			Timestamp: now,
+			Timestamp: now.Format(time.RFC3339),
 			Device: wsDeviceInfo{
 				IsOnline: payload.IsOnline,
-				LastSeen: now,
+				LastSeen: now.Format(time.RFC3339),
 			},
 		}
 
