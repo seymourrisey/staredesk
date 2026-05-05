@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -34,7 +35,8 @@ type MQTTConfig struct {
 
 type AppConfig struct {
 	Port           string
-	AllowedOrigins string
+	AllowedOrigins []string
+	IsProd         bool
 }
 
 func Load() *Config {
@@ -66,7 +68,8 @@ func Load() *Config {
 		},
 		App: AppConfig{
 			Port:           getEnv("APP_PORT", "8080"),
-			AllowedOrigins: getEnv("ALLOWED_ORIGINS", "http://localhost:3000"),
+			AllowedOrigins: parseOrigins(getEnv("ALLOWED_ORIGINS", "http://localhost:3000")),
+			IsProd:         getEnv("APP_ENV", "development") == "production",
 		},
 	}
 }
@@ -84,4 +87,16 @@ func getEnv(key, fallback string) string {
 		return val
 	}
 	return fallback
+}
+
+func parseOrigins(raw string) []string {
+	parts := strings.Split(raw, ",")
+	var origins []string
+	for _, p := range parts {
+		trimmed := strings.TrimSpace(p)
+		if trimmed != "" {
+			origins = append(origins, trimmed)
+		}
+	}
+	return origins
 }
