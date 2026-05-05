@@ -16,7 +16,7 @@ type Router struct {
 	sensorHandler    *handler.SensorHandler
 	wsHandler        *websocketdelivery.Handler
 	jwtSecret        string
-	allowedOrigins   string
+	allowedOrigins   []string
 }
 
 func NewRouter(
@@ -27,7 +27,7 @@ func NewRouter(
 	sensorHandler *handler.SensorHandler,
 	wsHandler *websocketdelivery.Handler,
 	jwtSecret string,
-	allowedOrigins string,
+	allowedOrigins []string,
 ) *Router {
 	return &Router{
 		authHandler:      authHandler,
@@ -43,7 +43,7 @@ func NewRouter(
 
 func (r *Router) Setup(engine *gin.Engine) {
 	engine.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{r.allowedOrigins},
+		AllowOrigins:     r.allowedOrigins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},
