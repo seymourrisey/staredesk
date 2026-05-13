@@ -50,7 +50,7 @@ func (s *Subscriber) SubscribeAll() error {
 
 	// device/status — QoS 1
 	t = TopicStatus(s.userID)
-	if err := s.client.Subscribe(t, QoS1, MakeStatusHandler(s.hub, s.deviceUC, s.userID)); err != nil {
+	if err := s.client.Subscribe(t, QoS1, MakeStatusHandler(s.hub, s.deviceUC, s.sessionUC, s.userID)); err != nil {
 		return err
 	}
 	log.Printf("[MQTT] Subscribed: %s", t)
