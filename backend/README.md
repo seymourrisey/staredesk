@@ -5,6 +5,8 @@ Project ini berfungsi sebagai pusat komunikasi antara perangkat IoT (ESP32), dat
 
 Backend dibangun menggunakan Golang dengan arsitektur modular berbasis clean architecture agar mudah dikembangkan, dirawat, dan scalable.
 
+[API Documentation](backend/api-docs.md)
+
 ---
 
 # Fitur Utama
