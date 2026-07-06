@@ -1,8 +1,4 @@
 # StareDesk API Documentation
-> For frontend developers — Backend by seymourrisey
-
-**Base URL (local):** `http://localhost:8080`  
-**Base URL (production):** TBD
 
 ---
 
