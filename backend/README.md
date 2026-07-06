@@ -40,49 +40,6 @@ Project menggunakan pendekatan layered / clean architecture:
 
 ```text
 Handler -> Usecase -> Repository -> Database
-
-# StareDesk - Backend
-
-Backend service untuk project IoT StareDesk.  
-Project ini berfungsi sebagai pusat komunikasi antara perangkat IoT (ESP32), database, MQTT Broker, dan frontend dashboard.
-
-Backend dibangun menggunakan Golang dengan arsitektur modular berbasis clean architecture agar mudah dikembangkan, dirawat, dan scalable.
-
----
-
-## Fitur Utama
-
-- REST API menggunakan Gin
-- MQTT subscriber & publisher untuk komunikasi realtime dengan ESP32
-- WebSocket realtime untuk dashboard monitoring
-- JWT Authentication
-- Session tracking
-- Sensor logging
-- Analytics monitoring
-- PostgreSQL database
-- Docker support
-
----
-
-## Teknologi yang Digunakan
-
-- Golang
-- Gin Framework
-- PostgreSQL
-- MQTT (HiveMQ / MQTT Broker)
-- Gorilla WebSocket
-- JWT
-- Docker
-- PGX PostgreSQL Driver
-
----
-
-## Arsitektur Project
-
-Project menggunakan pendekatan layered / clean architecture:
-
-```text
-Handler -> Usecase -> Repository -> Database
 ```
 ## Penjelasan
 
